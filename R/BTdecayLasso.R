@@ -45,7 +45,7 @@
 #' @param fixed A teams index whose ability will be fixed as 0. The worstTeam's index
 #' can be generated using \code{\link{BTdataframe}} given raw data.
 #' @param thersh Threshold for convergence used for Augmented Lagrangian Method.
-#' @param max Maximum weight for w_{ij} (weight used for Adaptive Lasso)
+#' @param max Maximum weight for \eqn{w_{ij}} (weight used for Adaptive Lasso)
 #' @param iter Number of iterations used in L-BFGS-B algorithm.
 #' @details
 #' According to \code{\link{BTdecay}}, the objective likelihood function to be optimized is,
@@ -89,8 +89,8 @@
 #' ##The whole Adaptive Lasso run will take 5-20 min
 #' \donttest{
 #' ##BTdecayLasso run with exponential decay rate 0.005 and 
-#' ##lambda 0.1 on whole lasso path using adaptive lasso
-#' y1 <- BTdecayLasso(x$dataframe, x$ability, lambda = 0.1, 
+#' ##lambda 0.1, use path = TRUE if you want to run whole LASSO path
+#' y1 <- BTdecayLasso(x$dataframe, x$ability, lambda = 0.1, path = FALSE,
 #'                    decay.rate = 0.005, fixed = x$worstTeam)
 #' summary(y1)
 #' 
@@ -100,6 +100,7 @@
 #' ##(evolving of distinct ability scores), it may take a much longer time. 
 #' ##We recommend the user to apply the default setting,
 #' ##where Adaptive Lasso will be run.
+#' 
 #' n <- nrow(x$ability) - 1
 #' w2 <- matrix(1, nrow = n, ncol = n)
 #' w2[lower.tri(w2, diag = TRUE)] <- 0
@@ -108,15 +109,7 @@
 #' y2 <- BTdecayLasso(x$dataframe, x$ability, lambda = 0.1, weight = w2, 
 #'                    path = FALSE, decay.rate = 0.005, fixed = x$worstTeam)
 #' 
-#' ##BTdecayLasso run with exponential decay rate 0.005 and with a specific lambda 0.1
-#' ##Time-consuming
-#' y3 <- BTdecayLasso(x$dataframe, x$ability, lambda = 0.1, weight = w2, 
-#'                    path = TRUE, decay.rate = 0.005, fixed = x$worstTeam)
 #' summary(y2)
-#' 
-#' ##Plot the Lasso path (S3 method)
-#' plot(y1)
-#' plot(y3)
 #' }
 #' 
 #' @export
@@ -166,8 +159,10 @@ BTdecayLasso <- function(dataframe, ability, lambda = NULL, weight = NULL, path 
     while (degree0 < (n - 1)) {
       stop <- 0
       while (stop==0) {
-        ability <- BTdecayLasso.step1(dataframe, ability, weight, Lagrangian, theta, v, lambda1, 
-                                      decay.rate = decay.rate, fixed = fixed, thersh = thersh, iter = iter)
+        ##ability <- BTdecayLasso.step1(dataframe, ability, weight, Lagrangian, theta, v, lambda1, 
+        ##                              decay.rate = decay.rate, fixed = fixed, thersh = thersh, iter = iter)
+        ability <- BTdecay.Qua(dataframe, ability, theta, v, Lagrangian, decay.rate = decay.rate,
+                               fixed = fixed, iter = iter)
         theta <- BTtheta(ability, weight, Lagrangian, v, lambda1)
         Lagrangian0 <- BTLagrangian(Lagrangian, ability, theta, v)
         k <- sum(abs(Lagrangian0 - Lagrangian))
@@ -180,7 +175,6 @@ BTdecayLasso <- function(dataframe, ability, lambda = NULL, weight = NULL, path 
         s0 <- penaltyAmount(ability, weight)
       }
       
-      cat(s0, '\n')
       p0 <- s0/s1
       ability0 <- cbind(ability0, ability)
       l0 <- BTLikelihood(dataframe, ability, decay.rate = decay.rate)
@@ -221,7 +215,7 @@ BTdecayLasso <- function(dataframe, ability, lambda = NULL, weight = NULL, path 
       
       slambda <- c(slambda, lambda1)
       
-      if (degree > (degree0 + 1) && abs(lambda0 - lambda1) > thersh) {
+      if (degree > (degree0 + 1) && abs(lambda0 - lambda1) > (thersh * 10)) {
         lambda1 <- (lambda0 + lambda1)/2
       } else {
         lambda0 <- lambda1
@@ -236,8 +230,10 @@ BTdecayLasso <- function(dataframe, ability, lambda = NULL, weight = NULL, path 
     for (i in 1:length(lambda)) {
       stop <- 0
       while (stop==0) {
-        ability <- BTdecayLasso.step1(dataframe, ability, weight, Lagrangian, theta, v, lambda[i], 
-                                      decay.rate = decay.rate, fixed = fixed, thersh = thersh, iter = iter)
+        ##ability <- BTdecayLasso.step1(dataframe, ability, weight, Lagrangian, theta, v, lambda[i], 
+        ##                              decay.rate = decay.rate, fixed = fixed, thersh = thersh, iter = iter)
+        ability <- BTdecay.Qua(dataframe, ability, theta, v, Lagrangian, decay.rate = decay.rate,
+                               fixed = fixed, iter = iter)
         theta <- BTtheta(ability, weight, Lagrangian, v, lambda[i])
         Lagrangian0 <- BTLagrangian(Lagrangian, ability, theta, v)
         k <- sum(abs(Lagrangian0 - Lagrangian))
@@ -250,7 +246,6 @@ BTdecayLasso <- function(dataframe, ability, lambda = NULL, weight = NULL, path 
         s0 <- penaltyAmount(ability, weight)
       }
       
-      cat(s0, '\n')
       p0 <- s0/s1
       ability0 <- cbind(ability0, ability)
       l0 <- BTLikelihood(dataframe, ability, decay.rate = decay.rate)
